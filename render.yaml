@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: restaurant-api
+    env: dotnet
+    buildCommand: |
+      mkdir -p App_Data
+      dotnet build
+    startCommand: dotnet run
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=/opt/render/project/src/App_Data/restaurant.db
+      - key: JwtSettings__SecretKey
+        generateValue: true
+      - key: JwtSettings__Issuer
+        value: https://restaurant-api-923e.onrender.com
+      - key: JwtSettings__Audience
+        value: https://restaurant-api-923e.onrender.com
+      - key: Stripe__SecretKey
+        sync: false
+      - key: Stripe__WebhookSecret
+        sync: false
+      - key: FrontendUrl
+        value: https://restaurant-ui.vercel.app 
