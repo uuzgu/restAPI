@@ -19,7 +19,7 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(builder =>
     {
         builder
-            .SetIsOriginAllowed(origin => true) // Allow all origins for testing
+            .WithOrigins("https://rest-ui-utkus-projects-cabada99.vercel.app")
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -80,15 +80,24 @@ if (app.Environment.IsDevelopment())
 // Use CORS before other middleware
 app.UseCors();
 
+// Handle OPTIONS requests
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.Headers.Add("Access-Control-Allow-Origin", "https://rest-ui-utkus-projects-cabada99.vercel.app");
+        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        context.Response.StatusCode = 200;
+        return;
+    }
+    await next();
+});
+
 // Add security headers
 app.Use(async (context, next) =>
 {
-    // Add CORS headers explicitly
-    context.Response.Headers.Add("Access-Control-Allow-Origin", context.Request.Headers["Origin"].ToString());
-    context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
-    context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
