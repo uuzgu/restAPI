@@ -14,9 +14,9 @@ services:
       - key: JwtSettings__SecretKey
         generateValue: true
       - key: JwtSettings__Issuer
-        value: https://restaurant-api-923e.onrender.com
+        value: https://restapi-m5th.onrender.com
       - key: JwtSettings__Audience
-        value: https://restaurant-api-923e.onrender.com
+        value: https://restapi-m5th.onrender.com
       - key: Stripe__SecretKey
         sync: false
       - key: Stripe__WebhookSecret
