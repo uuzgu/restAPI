@@ -51,6 +51,8 @@ appsettings.Development.json
 *.db-shm
 *.db-wal
 App_Data/*.db
+# Allow tracking of the main deployment database
+!App_Data/restaurant.db
 
 # Build results
 [Dd]ebug/

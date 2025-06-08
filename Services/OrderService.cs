@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace RestaurantApi.Services
 {
-    public class OrderService
+    public class OrderService : IOrderService
     {
         private readonly RestaurantContext _context;
 

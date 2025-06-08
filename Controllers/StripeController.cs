@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RestaurantApi.Data;
 using RestaurantApi.Models;
+using RestaurantApi.Services;
 using Stripe;
 using Stripe.Checkout;
 using System.ComponentModel.DataAnnotations;
@@ -17,12 +18,14 @@ namespace RestaurantApi.Controllers
         private readonly RestaurantContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<StripeController> _logger;
+        private readonly IOrderService _orderService;
 
-        public StripeController(RestaurantContext context, IConfiguration configuration, ILogger<StripeController> logger)
+        public StripeController(RestaurantContext context, IConfiguration configuration, ILogger<StripeController> logger, IOrderService orderService)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _orderService = orderService;
         }
 
         [HttpPost("create-checkout-session")]
@@ -254,14 +257,148 @@ namespace RestaurantApi.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                return Ok(new
+                // Get complete order details using OrderService
+                var completeOrder = await _orderService.GetOrderById(orderId);
+                if (completeOrder == null)
                 {
-                    orderId = order.Id,
-                    orderNumber = order.OrderNumber,
-                    total = order.Total,
-                    status = order.Status,
-                    paymentMethod = order.PaymentMethod
-                });
+                    return NotFound("Order not found");
+                }
+
+                // Get order items with safe deserialization
+                var items = new List<OrderItemResponse>();
+                foreach (var od in completeOrder.OrderDetails)
+                {
+                    try
+                    {
+                        if (string.IsNullOrEmpty(od.ItemDetails))
+                        {
+                            _logger.LogWarning("Empty ItemDetails for OrderDetail {OrderDetailId}", od.Id);
+                            continue;
+                        }
+
+                        var itemDetails = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(od.ItemDetails);
+                        if (itemDetails == null)
+                        {
+                            _logger.LogWarning("Failed to deserialize ItemDetails for OrderDetail {OrderDetailId}", od.Id);
+                            continue;
+                        }
+
+                        // Extract selectedItems
+                        var selectedItems = new List<object>();
+                        if (itemDetails.TryGetValue("selectedItems", out var siElem) && 
+                            siElem.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var si in siElem.EnumerateArray())
+                            {
+                                if (si.ValueKind == JsonValueKind.Object)
+                                {
+                                    var siDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(si.GetRawText());
+                                    if (siDict != null)
+                                    {
+                                        selectedItems.Add(new
+                                        {
+                                            id = siDict.TryGetValue("id", out var siIdElem) ? siIdElem.GetInt32() : 0,
+                                            name = siDict.TryGetValue("name", out var siNameElem) ? siNameElem.GetString() ?? "" : "",
+                                            price = siDict.TryGetValue("price", out var siPriceElem) ? siPriceElem.GetDecimal() : 0,
+                                            quantity = siDict.TryGetValue("quantity", out var siQtyElem) ? siQtyElem.GetInt32() : 1,
+                                            groupName = siDict.TryGetValue("groupName", out var siGroupElem) ? siGroupElem.GetString() : null,
+                                            type = siDict.TryGetValue("type", out var siTypeElem) ? siTypeElem.GetString() : null
+                                        });
+                                    }
+                                }
+                            }
+                        }
+
+                        // Extract groupOrder
+                        var groupOrder = new List<string>();
+                        if (itemDetails.TryGetValue("groupOrder", out var goElem) && 
+                            goElem.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var go in goElem.EnumerateArray())
+                            {
+                                if (go.ValueKind == JsonValueKind.String)
+                                {
+                                    groupOrder.Add(go.GetString() ?? "");
+                                }
+                            }
+                        }
+
+                        items.Add(new OrderItemResponse
+                        {
+                            Id = itemDetails.TryGetValue("id", out var idElem) ? idElem.GetInt32() : 0,
+                            Name = itemDetails.TryGetValue("name", out var nameElem) ? nameElem.GetString() ?? "" : "",
+                            Price = itemDetails.TryGetValue("price", out var priceElem) ? priceElem.GetDecimal() : 0,
+                            Quantity = itemDetails.TryGetValue("quantity", out var qtyElem) ? qtyElem.GetInt32() : 1,
+                            Note = itemDetails.TryGetValue("note", out var noteElem) ? noteElem.GetString() ?? "" : "",
+                            SelectedItems = selectedItems,
+                            GroupOrder = groupOrder,
+                            Image = itemDetails.TryGetValue("image", out var imgElem) ? imgElem.GetString() ?? "" : "",
+                            OriginalPrice = itemDetails.TryGetValue("originalPrice", out var originalPriceElem) ? originalPriceElem.GetDecimal() : 0
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error deserializing order detail {OrderDetailId}", od.Id);
+                        continue;
+                    }
+                }
+
+                // Calculate original total (base original price + options for each item)
+                decimal originalTotal = 0;
+                foreach (var item in items)
+                {
+                    var basePrice = item.OriginalPrice * item.Quantity;
+                    var options = 0m;
+                    if (item.SelectedItems != null)
+                    {
+                        foreach (dynamic si in item.SelectedItems)
+                        {
+                            decimal price = 0;
+                            int qty = 1;
+                            try { price = (decimal)(si.price ?? 0); } catch { }
+                            try { qty = (int)(si.quantity ?? 1); } catch { }
+                            options += price * qty;
+                        }
+                    }
+                    originalTotal += basePrice + options;
+                }
+
+                // Map customer info to match create-cash-order response format
+                var customerInfo = completeOrder.CustomerInfo != null ? new {
+                    FirstName = completeOrder.CustomerInfo.FirstName,
+                    LastName = completeOrder.CustomerInfo.LastName,
+                    Email = completeOrder.CustomerInfo.Email,
+                    Phone = completeOrder.CustomerInfo.Phone,
+                    PostalCode = completeOrder.DeliveryAddress?.PostcodeId,
+                    Street = completeOrder.DeliveryAddress?.Street,
+                    House = completeOrder.DeliveryAddress?.House,
+                    Stairs = completeOrder.DeliveryAddress?.Stairs,
+                    Stick = completeOrder.DeliveryAddress?.Stick,
+                    Door = completeOrder.DeliveryAddress?.Door,
+                    Bell = completeOrder.DeliveryAddress?.Bell,
+                    SpecialNotes = completeOrder.SpecialNotes
+                } : null;
+
+                var response = new OrderResponse
+                {
+                    OrderId = completeOrder.Id,
+                    OrderNumber = completeOrder.OrderNumber,
+                    Status = completeOrder.Status,
+                    Total = completeOrder.Total,
+                    PaymentMethod = completeOrder.PaymentMethod,
+                    OrderMethod = completeOrder.OrderMethod,
+                    CreatedAt = completeOrder.CreatedAt,
+                    CustomerInfo = customerInfo,
+                    Items = items,
+                    DiscountCoupon = items.Any(item => item.Price < item.OriginalPrice) ? 1 : 0,
+                    SpecialNotes = completeOrder.SpecialNotes,
+                    OriginalTotal = originalTotal
+                };
+
+                _logger.LogInformation("Returning order details: {OrderDetails}", 
+                    JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true }));
+
+                return Ok(response);
             }
             catch (Exception ex)
             {

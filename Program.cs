@@ -67,7 +67,7 @@ builder.Services.AddDbContext<RestaurantContext>(options =>
 });
 
 // Add Services
-builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<DataMigrationService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
