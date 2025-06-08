@@ -21,9 +21,9 @@ namespace RestaurantApi.Controllers
         private readonly RestaurantContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<OrderController> _logger;
-        private readonly OrderService _orderService;
+        private readonly IOrderService _orderService;
 
-        public OrderController(RestaurantContext context, IConfiguration configuration, ILogger<OrderController> logger, OrderService orderService)
+        public OrderController(RestaurantContext context, IConfiguration configuration, ILogger<OrderController> logger, IOrderService orderService)
         {
             _context = context;
             _configuration = configuration;
