@@ -28,7 +28,8 @@ builder.Services.AddCors(options =>
         builder.WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials();
+            .AllowCredentials()
+            .SetIsOriginAllowed(origin => allowedOrigins.Contains(origin));
     });
 });
 
@@ -89,6 +90,16 @@ app.UseCors("AllowAll");
 // Add security headers
 app.Use(async (context, next) =>
 {
+    // Add CORS headers explicitly
+    var origin = context.Request.Headers["Origin"].ToString();
+    if (!string.IsNullOrEmpty(origin))
+    {
+        context.Response.Headers.Add("Access-Control-Allow-Origin", origin);
+        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    }
+
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
