@@ -16,20 +16,13 @@ builder.Logging.AddDebug();
 // Add CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddDefaultPolicy(builder =>
     {
-        var allowedOrigins = new[] {
-            "https://restaurant-ui-gules.vercel.app",  // Old production URL
-            "https://restaurant-ui.vercel.app",        // Alternative production URL
-            "https://rest-ui-utkus-projects-cabada99.vercel.app", // New deployed frontend
-            "http://localhost:3000"  // Local development
-        };
-        
-        builder.WithOrigins(allowedOrigins)
+        builder
+            .SetIsOriginAllowed(origin => true) // Allow all origins for testing
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()
-            .SetIsOriginAllowed(origin => allowedOrigins.Contains(origin));
+            .AllowCredentials();
     });
 });
 
@@ -85,20 +78,16 @@ if (app.Environment.IsDevelopment())
 }
 
 // Use CORS before other middleware
-app.UseCors("AllowAll");
+app.UseCors();
 
 // Add security headers
 app.Use(async (context, next) =>
 {
     // Add CORS headers explicitly
-    var origin = context.Request.Headers["Origin"].ToString();
-    if (!string.IsNullOrEmpty(origin))
-    {
-        context.Response.Headers.Add("Access-Control-Allow-Origin", origin);
-        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
-        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    }
+    context.Response.Headers.Add("Access-Control-Allow-Origin", context.Request.Headers["Origin"].ToString());
+    context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+    context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
