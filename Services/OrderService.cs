@@ -19,6 +19,7 @@ namespace RestaurantApi.Services
             return await _context.Orders
                 .Include(o => o.CustomerInfo)
                 .Include(o => o.OrderDetails)
+                .Include(o => o.DeliveryAddress)
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
 
@@ -27,6 +28,7 @@ namespace RestaurantApi.Services
             return await _context.Orders
                 .Include(o => o.CustomerInfo)
                 .Include(o => o.OrderDetails)
+                .Include(o => o.DeliveryAddress)
                 .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
         }
 
