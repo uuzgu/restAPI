@@ -22,4 +22,4 @@ services:
       - key: Stripe__WebhookSecret
         sync: false
       - key: FrontendUrl
-        value: https://restaurant-ui.vercel.app 
+        value: https://rest-ui-utkus-projects-cabada99.vercel.app 
