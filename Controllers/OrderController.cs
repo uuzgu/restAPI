@@ -329,20 +329,11 @@ namespace RestaurantApi.Controllers
 
                 await transaction.CommitAsync();
 
-                // Calculate original total (base original price + options for each item)
+                // Calculate original total (base original price only, since options are included in the price)
                 decimal originalTotal = 0;
                 foreach (var item in request.Items)
                 {
-                    var basePrice = item.OriginalPrice * item.Quantity;
-                    var options = 0m;
-                    if (item.SelectedItems != null)
-                    {
-                        foreach (var si in item.SelectedItems)
-                        {
-                            options += (si.Price * si.Quantity);
-                        }
-                    }
-                    originalTotal += basePrice + options;
+                    originalTotal += item.OriginalPrice * item.Quantity;
                 }
 
                 // Log recent orders after creation
@@ -521,24 +512,11 @@ namespace RestaurantApi.Controllers
                     }
                 }
 
-                // Calculate original total (base original price + options for each item)
+                // Calculate original total (base original price only, since options are included in the price)
                 decimal originalTotal = 0;
                 foreach (var item in items)
                 {
-                    var basePrice = item.OriginalPrice * item.Quantity;
-                    var options = 0m;
-                    if (item.SelectedItems != null)
-                    {
-                        foreach (dynamic si in item.SelectedItems)
-                        {
-                            decimal price = 0;
-                            int qty = 1;
-                            try { price = (decimal)(si.price ?? 0); } catch { }
-                            try { qty = (int)(si.quantity ?? 1); } catch { }
-                            options += price * qty;
-                        }
-                    }
-                    originalTotal += basePrice + options;
+                    originalTotal += item.OriginalPrice * item.Quantity;
                 }
 
                 // Map customer info to match create-cash-order response format
