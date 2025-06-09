@@ -34,8 +34,10 @@ namespace RestaurantApi.Controllers
             try
             {
                 var stripeApiKey = _configuration["Stripe:SecretKey"];
+                _logger.LogInformation("Stripe API Key from configuration: {StripeApiKey}", stripeApiKey);
                 if (string.IsNullOrEmpty(stripeApiKey))
                 {
+                    _logger.LogError("Stripe API key is not configured");
                     return StatusCode(500, "Stripe API key is not configured");
                 }
 
@@ -118,6 +120,7 @@ namespace RestaurantApi.Controllers
                             name = item.Name,
                             quantity = item.Quantity,
                             price = item.Price,
+                            originalPrice = item.OriginalPrice,
                             note = item.Notes,
                             selectedItems = selectedItems,
                             groupOrder = item.GroupOrder ?? new List<string>(),
@@ -133,39 +136,24 @@ namespace RestaurantApi.Controllers
                 }
                 await _context.SaveChangesAsync();
 
-                // Log recent orders after creation
-                try
+                // Calculate original total (base original price only, since options are included in the price)
+                decimal originalTotal = 0;
+                foreach (var item in request.Items)
                 {
-                    var recentOrders = await _context.Orders
-                        .Include(o => o.CustomerInfo)
-                        .Include(o => o.OrderDetails)
-                        .OrderByDescending(o => o.Id)
-                        .Take(5)
-                        .Select(o => new
-                        {
-                            o.Id,
-                            o.OrderNumber,
-                            o.Status,
-                            o.Total,
-                            o.PaymentMethod,
-                            o.OrderMethod,
-                            CustomerInfo = o.CustomerInfo != null ? new
-                            {
-                                o.CustomerInfo.FirstName,
-                                o.CustomerInfo.LastName,
-                                o.CustomerInfo.Email
-                            } : null,
-                            OrderDetailsCount = o.OrderDetails.Count
-                        })
-                        .ToListAsync();
+                    originalTotal += item.OriginalPrice * item.Quantity;
+                }
 
-                    _logger.LogInformation("Recent Orders after Stripe checkout creation: {Orders}", 
-                        JsonSerializer.Serialize(recentOrders, new JsonSerializerOptions { WriteIndented = true }));
-                }
-                catch (Exception logEx)
+                // Check if any item has a discount applied
+                bool hasDiscount = request.Items.Any(item => item.Price < item.OriginalPrice);
+
+                // Store discount information in metadata
+                var metadata = new Dictionary<string, string>
                 {
-                    _logger.LogWarning(logEx, "Error logging recent orders");
-                }
+                    { "orderId", order.Id.ToString() },
+                    { "orderNumber", order.OrderNumber },
+                    { "hasDiscount", hasDiscount ? "1" : "0" },
+                    { "originalTotal", originalTotal.ToString() }
+                };
 
                 var frontendUrl = _configuration["FrontendUrl"];
                 if (string.IsNullOrEmpty(frontendUrl))
@@ -195,6 +183,9 @@ namespace RestaurantApi.Controllers
                             ProductData = new SessionLineItemPriceDataProductDataOptions
                             {
                                 Name = item.Name,
+                                Description = item.SelectedItems?.Any() == true 
+                                    ? string.Join(", ", item.SelectedItems.Select(si => $"{si.Name} (+{si.Price:C})"))
+                                    : null
                             },
                             UnitAmount = (long)(item.Price * 100), // Convert to cents
                         },
@@ -204,11 +195,7 @@ namespace RestaurantApi.Controllers
                     SuccessUrl = $"{frontendUrl}/payment/success?session_id={{CHECKOUT_SESSION_ID}}&payment_method=stripe",
                     CancelUrl = $"{frontendUrl}/payment/cancel?session_id={{CHECKOUT_SESSION_ID}}&payment_method=stripe",
                     CustomerEmail = request.CustomerInfo?.Email,
-                    Metadata = new Dictionary<string, string>
-                    {
-                        { "orderId", order.Id.ToString() },
-                        { "orderNumber", order.OrderNumber }
-                    }
+                    Metadata = metadata
                 };
 
                 var service = new SessionService();
@@ -323,17 +310,20 @@ namespace RestaurantApi.Controllers
                             }
                         }
 
+                        var price = itemDetails.TryGetValue("price", out var priceElem) ? priceElem.GetDecimal() : 0;
+                        var originalPrice = itemDetails.TryGetValue("originalPrice", out var originalPriceElem) ? originalPriceElem.GetDecimal() : price;
+
                         items.Add(new OrderItemResponse
                         {
                             Id = itemDetails.TryGetValue("id", out var idElem) ? idElem.GetInt32() : 0,
                             Name = itemDetails.TryGetValue("name", out var nameElem) ? nameElem.GetString() ?? "" : "",
-                            Price = itemDetails.TryGetValue("price", out var priceElem) ? priceElem.GetDecimal() : 0,
+                            Price = price,
                             Quantity = itemDetails.TryGetValue("quantity", out var qtyElem) ? qtyElem.GetInt32() : 1,
                             Note = itemDetails.TryGetValue("note", out var noteElem) ? noteElem.GetString() ?? "" : "",
                             SelectedItems = selectedItems,
                             GroupOrder = groupOrder,
                             Image = itemDetails.TryGetValue("image", out var imgElem) ? imgElem.GetString() ?? "" : "",
-                            OriginalPrice = itemDetails.TryGetValue("originalPrice", out var originalPriceElem) ? originalPriceElem.GetDecimal() : 0
+                            OriginalPrice = originalPrice
                         });
                     }
                     catch (Exception ex)
@@ -343,24 +333,11 @@ namespace RestaurantApi.Controllers
                     }
                 }
 
-                // Calculate original total (base original price + options for each item)
+                // Calculate original total (base original price only, since options are included in the price)
                 decimal originalTotal = 0;
                 foreach (var item in items)
                 {
-                    var basePrice = item.OriginalPrice * item.Quantity;
-                    var options = 0m;
-                    if (item.SelectedItems != null)
-                    {
-                        foreach (dynamic si in item.SelectedItems)
-                        {
-                            decimal price = 0;
-                            int qty = 1;
-                            try { price = (decimal)(si.price ?? 0); } catch { }
-                            try { qty = (int)(si.quantity ?? 1); } catch { }
-                            options += price * qty;
-                        }
-                    }
-                    originalTotal += basePrice + options;
+                    originalTotal += item.OriginalPrice * item.Quantity;
                 }
 
                 // Map customer info to match create-cash-order response format
@@ -564,5 +541,18 @@ namespace RestaurantApi.Controllers
         public string? Door { get; set; }
 
         public string? Bell { get; set; }
+    }
+
+    public class StripeCheckoutItem
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public decimal OriginalPrice { get; set; }
+        public int Quantity { get; set; }
+        public string? Notes { get; set; }
+        public string? Image { get; set; }
+        public List<string>? GroupOrder { get; set; }
+        public List<SelectedItem>? SelectedItems { get; set; }
     }
 }
