@@ -181,7 +181,7 @@ namespace RestaurantApi.Controllers
                 _logger.LogError(ex, "Error creating order");
                 return BadRequest(new { Error = ex.Message });
             }
-        }
+        } 
 
         [HttpPost("create-cash-order")]
         public async Task<IActionResult> CreateCashOrder([FromBody] CreateCashOrderRequest request)
