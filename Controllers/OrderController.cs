@@ -52,7 +52,7 @@ namespace RestaurantApi.Controllers
                 {
                     OrderNumber = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
                     Status = request.Status,
-                    Total = request.Items.Sum(item => item.Price * item.Quantity),
+                    Total = request.TotalAmount,
                     PaymentMethod = request.PaymentMethod,
                     OrderMethod = request.OrderMethod,
                     SpecialNotes = request.SpecialNotes,
@@ -259,7 +259,7 @@ namespace RestaurantApi.Controllers
                 {
                     OrderNumber = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
                     Status = request.Status,
-                    Total = request.Items.Sum(item => item.Price * item.Quantity),
+                    Total = request.TotalAmount,
                     PaymentMethod = request.PaymentMethod,
                     OrderMethod = request.OrderMethod,
                     SpecialNotes = request.SpecialNotes,
@@ -333,7 +333,7 @@ namespace RestaurantApi.Controllers
                 decimal originalTotal = 0;
                 foreach (var item in request.Items)
                 {
-                    originalTotal += item.OriginalPrice * item.Quantity;
+                    originalTotal += item.OriginalPrice;
                 }
 
                 // Log recent orders after creation
@@ -516,7 +516,7 @@ namespace RestaurantApi.Controllers
                 decimal originalTotal = 0;
                 foreach (var item in items)
                 {
-                    originalTotal += item.OriginalPrice * item.Quantity;
+                    originalTotal += item.OriginalPrice;
                 }
 
                 // Map customer info to match create-cash-order response format
@@ -548,7 +548,7 @@ namespace RestaurantApi.Controllers
                     Items = items,
                     DiscountCoupon = items.Any(item => item.Price < item.OriginalPrice) ? 1 : 0,
                     SpecialNotes = order.SpecialNotes,
-                    OriginalTotal = originalTotal
+                    OriginalTotal = order.Total
                 };
 
                 _logger.LogInformation("Returning order details: {OrderDetails}", 
@@ -568,50 +568,37 @@ namespace RestaurantApi.Controllers
     public class CreateOrderRequest
     {
         [Required]
-        public string Status { get; set; } = string.Empty;
-
-        [Required]
-        public decimal TotalAmount { get; set; }
-
-        [Required]
-        public string PaymentMethod { get; set; } = string.Empty;
-
-        [Required]
-        public string OrderMethod { get; set; } = string.Empty;
-
-        [JsonPropertyName("specialNotes")]
-        public string? SpecialNotes { get; set; }
-
-        [Required]
         public List<OrderItemRequest> Items { get; set; } = new();
-
         [Required]
         public CustomerInfoRequest CustomerInfo { get; set; } = new();
+        [Required]
+        public string OrderMethod { get; set; } = string.Empty;
+        [Required]
+        public string PaymentMethod { get; set; } = string.Empty;
+        [JsonPropertyName("specialNotes")]
+        public string? SpecialNotes { get; set; }
+        [Required]
+        public string Status { get; set; } = string.Empty;
+        [Required]
+        public decimal TotalAmount { get; set; }
     }
 
     public class CreateCashOrderRequest
     {
         [Required]
-        public string Status { get; set; } = string.Empty;
-
-        [Required]
-        public decimal TotalAmount { get; set; }
-
-        [JsonPropertyName("specialNotes")]
-        public string? SpecialNotes { get; set; }
-
-        [Required]
-        public string OrderMethod { get; set; } = string.Empty;
-
-        [Required]
-        public string PaymentMethod { get; set; } = string.Empty;
-
-        [Required]
         public List<OrderItemRequest> Items { get; set; } = new();
-
         [Required]
         public CustomerInfoRequest CustomerInfo { get; set; } = new();
-
+        [JsonPropertyName("specialNotes")]
+        public string? SpecialNotes { get; set; }
+        [Required]
+        public string OrderMethod { get; set; } = string.Empty;
+        [Required]
+        public string PaymentMethod { get; set; } = string.Empty;
+        [Required]
+        public string Status { get; set; } = string.Empty;
+        [Required]
+        public decimal TotalAmount { get; set; }
         public decimal DiscountCoupon { get; set; }
     }
 
