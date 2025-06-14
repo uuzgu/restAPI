@@ -121,7 +121,7 @@ namespace RestaurantApi.Controllers
                             quantity = item.Quantity,
                             price = item.Price,
                             originalPrice = item.OriginalPrice,
-                            note = item.Notes,
+                            note = item.Note,
                             selectedItems = selectedItems,
                             groupOrder = item.GroupOrder ?? new List<string>(),
                             image = item.Image
@@ -175,22 +175,27 @@ namespace RestaurantApi.Controllers
                 var options = new SessionCreateOptions
                 {
                     PaymentMethodTypes = new List<string> { "card" },
-                    LineItems = request.Items.Select(item => new SessionLineItemOptions
+                    LineItems = new List<SessionLineItemOptions>
                     {
-                        PriceData = new SessionLineItemPriceDataOptions
+                        new SessionLineItemOptions
                         {
-                            Currency = "eur",
-                            ProductData = new SessionLineItemPriceDataProductDataOptions
+                            PriceData = new SessionLineItemPriceDataOptions
                             {
-                                Name = item.Name,
-                                Description = item.SelectedItems?.Any() == true 
-                                    ? string.Join(", ", item.SelectedItems.Select(si => $"{si.Name} (+{si.Price:C})"))
-                                    : null
+                                Currency = "eur",
+                                ProductData = new SessionLineItemPriceDataProductDataOptions
+                                {
+                                    Name = "Order Total",
+                                    Description = string.Join(", ", request.Items.Select(item => 
+                                        $"{item.Quantity}x {item.Name}" + 
+                                        (item.SelectedItems?.Any() == true 
+                                            ? $" ({string.Join(", ", item.SelectedItems.Select(si => $"{si.Name} (+{si.Price:C})"))})"
+                                            : "")))
+                                },
+                                UnitAmount = (long)(request.TotalAmount * 100), // Convert to cents
                             },
-                            UnitAmount = (long)(item.Price * 100), // Convert to cents
-                        },
-                        Quantity = item.Quantity,
-                    }).ToList(),
+                            Quantity = 1,
+                        }
+                    },
                     Mode = "payment",
                     SuccessUrl = $"{frontendUrl}/payment/success?session_id={{CHECKOUT_SESSION_ID}}&payment_method=stripe",
                     CancelUrl = $"{frontendUrl}/payment/cancel?session_id={{CHECKOUT_SESSION_ID}}&payment_method=stripe",
@@ -346,7 +351,7 @@ namespace RestaurantApi.Controllers
                     LastName = completeOrder.CustomerInfo.LastName,
                     Email = completeOrder.CustomerInfo.Email,
                     Phone = completeOrder.CustomerInfo.Phone,
-                    PostalCode = completeOrder.DeliveryAddress?.PostcodeId,
+                    PostalCode = completeOrder.DeliveryAddress?.Postcode?.Code,
                     Street = completeOrder.DeliveryAddress?.Street,
                     House = completeOrder.DeliveryAddress?.House,
                     Stairs = completeOrder.DeliveryAddress?.Stairs,
@@ -550,7 +555,7 @@ namespace RestaurantApi.Controllers
         public decimal Price { get; set; }
         public decimal OriginalPrice { get; set; }
         public int Quantity { get; set; }
-        public string? Notes { get; set; }
+        public string? Note { get; set; }
         public string? Image { get; set; }
         public List<string>? GroupOrder { get; set; }
         public List<SelectedItem>? SelectedItems { get; set; }

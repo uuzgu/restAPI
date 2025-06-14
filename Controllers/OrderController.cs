@@ -388,7 +388,7 @@ namespace RestaurantApi.Controllers
                         LastName = order.CustomerInfo.LastName,
                         Email = order.CustomerInfo.Email,
                         Phone = order.CustomerInfo.Phone,
-                        PostalCode = order.DeliveryAddress?.PostcodeId,
+                        PostalCode = order.DeliveryAddress?.Postcode?.Code,
                         Street = order.DeliveryAddress?.Street,
                         House = order.DeliveryAddress?.House,
                         Stairs = order.DeliveryAddress?.Stairs,
@@ -427,7 +427,13 @@ namespace RestaurantApi.Controllers
         {
             try
             {
-                var order = await _orderService.GetOrderById(id);
+                var order = await _context.Orders
+                    .Include(o => o.CustomerInfo)
+                    .Include(o => o.DeliveryAddress)
+                        .ThenInclude(d => d.Postcode)
+                    .Include(o => o.OrderDetails)
+                    .FirstOrDefaultAsync(o => o.Id == id);
+
                 if (order == null)
                 {
                     return NotFound(new { Error = "Order not found" });
@@ -525,7 +531,7 @@ namespace RestaurantApi.Controllers
                     LastName = order.CustomerInfo.LastName,
                     Email = order.CustomerInfo.Email,
                     Phone = order.CustomerInfo.Phone,
-                    PostalCode = order.DeliveryAddress?.PostcodeId,
+                    PostalCode = order.DeliveryAddress?.Postcode?.Code,
                     Street = order.DeliveryAddress?.Street,
                     House = order.DeliveryAddress?.House,
                     Stairs = order.DeliveryAddress?.Stairs,

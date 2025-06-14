@@ -20,6 +20,7 @@ namespace RestaurantApi.Services
                 .Include(o => o.CustomerInfo)
                 .Include(o => o.OrderDetails)
                 .Include(o => o.DeliveryAddress)
+                    .ThenInclude(d => d.Postcode)
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
 
