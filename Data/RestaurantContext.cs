@@ -25,6 +25,7 @@ namespace RestaurantApi.Data
         public DbSet<CategorySelectionGroup> CategorySelectionGroups { get; set; }
         public DbSet<Postcode> Postcodes { get; set; }
         public DbSet<DeliveryAddress> DeliveryAddresses { get; set; }
+        public DbSet<PostcodeAddress> PostcodeAddresses { get; set; }
         public DbSet<PostcodeMinimumOrder> PostcodeMinimumOrders { get; set; }
         public DbSet<Coupon> Coupons { get; set; }
         public DbSet<CouponHistory> CouponHistory { get; set; }
@@ -295,6 +296,20 @@ namespace RestaurantApi.Data
                 entity.HasKey(e => e.Id).HasName("id");
                 entity.Property(e => e.Postcode).HasColumnName("Postcode").IsRequired();
                 entity.Property(e => e.MinimumOrderValue).HasColumnName("MinimumOrderValue").IsRequired().HasColumnType("decimal(18,2)");
+            });
+
+            // Configure PostcodeAddress entity
+            modelBuilder.Entity<PostcodeAddress>(entity =>
+            {
+                entity.ToTable("postcode_addresses");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.PostcodeId).HasColumnName("postcode_id").IsRequired();
+                entity.Property(e => e.Street).HasColumnName("street").IsRequired();
+
+                entity.HasOne(e => e.Postcode)
+                    .WithMany(p => p.PostcodeAddresses)
+                    .HasForeignKey(e => e.PostcodeId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<SelectionGroup>()

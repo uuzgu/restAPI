@@ -27,14 +27,14 @@ namespace RestaurantApi.Controllers
         }
 
         [HttpGet("{postcodeId}/addresses")]
-        public async Task<ActionResult<IEnumerable<DeliveryAddress>>> GetAddressesByPostcode(int postcodeId)
+        public async Task<ActionResult<IEnumerable<PostcodeAddress>>> GetAddressesByPostcode(int postcodeId)
         {
             var postcode = await _context.Postcodes.FindAsync(postcodeId);
             if (postcode == null)
             {
                 return NotFound();
             }
-            var addresses = await _context.DeliveryAddresses
+            var addresses = await _context.PostcodeAddresses
                 .Where(a => a.PostcodeId == postcodeId)
                 .ToListAsync();
             return addresses;
@@ -44,33 +44,14 @@ namespace RestaurantApi.Controllers
         [HttpGet("debug")]
         public async Task<IActionResult> DebugDatabase()
         {
-            try
+            var postcodes = await _context.Postcodes.ToListAsync();
+            var addresses = await _context.PostcodeAddresses.ToListAsync();
+            
+            return Ok(new
             {
-                // First, get all tables in the database
-                var tables = await _context.Database.SqlQueryRaw<string>(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).ToListAsync();
-
-                // Then, for each table, get its structure
-                var tableStructures = new Dictionary<string, object>();
-                foreach (var table in tables)
-                {
-                    var columns = await _context.Database.SqlQueryRaw<string>(
-                        $"PRAGMA table_info({table})"
-                    ).ToListAsync();
-                    tableStructures[table] = columns;
-                }
-
-                return Ok(new
-                {
-                    Tables = tables,
-                    TableStructures = tableStructures
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { Error = ex.Message, StackTrace = ex.StackTrace });
-            }
+                Postcodes = postcodes,
+                Addresses = addresses
+            });
         }
     }
 } 

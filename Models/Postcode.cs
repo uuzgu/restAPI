@@ -20,5 +20,6 @@ namespace RestaurantApi.Models
 
         // Navigation properties
         public virtual ICollection<DeliveryAddress> DeliveryAddresses { get; set; } = new List<DeliveryAddress>();
+        public virtual ICollection<PostcodeAddress> PostcodeAddresses { get; set; } = new List<PostcodeAddress>();
     }
 } 

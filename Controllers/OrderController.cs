@@ -554,7 +554,7 @@ namespace RestaurantApi.Controllers
                     Items = items,
                     DiscountCoupon = items.Any(item => item.Price < item.OriginalPrice) ? 1 : 0,
                     SpecialNotes = order.SpecialNotes,
-                    OriginalTotal = order.Total
+                    OriginalTotal = originalTotal
                 };
 
                 _logger.LogInformation("Returning order details: {OrderDetails}", 
